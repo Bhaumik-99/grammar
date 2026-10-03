@@ -1,0 +1,15 @@
+{
+  "id": "simpra26/shl-2026-qwen2-audio-embeddings",
+  "title": "shl-2026-qwen2-audio-embeddings",
+  "code_file": "qwen2audio_emb.py",
+  "language": "python",
+  "kernel_type": "script",
+  "is_private": true,
+  "enable_gpu": true,
+  "enable_internet": true,
+  "machine_shape": "NvidiaTeslaT4",
+  "dataset_sources": [],
+  "competition_sources": ["shl-hiring-assessment-2026"],
+  "kernel_sources": [],
+  "model_sources": []
+}

@@ -1,0 +1,25 @@
+# Competition data and derived artefacts must not be published (competition rules, section 4)
+data/
+outputs/
+submissions/
+Dataset_Final/
+*.zip
+*.log
+*.wav
+*.npz
+*.npy
+*.csv
+*.jsonl
+*.parquet
+
+# Stray files written by local tooling
+templates/
+
+# Credentials
+.env
+kaggle.json
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
