@@ -67,7 +67,9 @@ Distribution statistics across the $216$ test evaluation samples generated in `s
 
 | Count | Mean | Standard Deviation | Min | 25th Pct | Median | 75th Pct | Max |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| $216$ | **`3.253`** | `0.848` | `1.653` | `2.607` | `3.182` | `3.738` | `5.000` |
+| $216$ | **`3.223`** | `0.871` | `1.614` | `2.556` | `3.144` | `3.722` | `5.000` |
+
+*Post-processing calibration applied*: Duration-cohort bias compensation ($-0.054$ shift on $44-46\text{ s}$ clips) and tail variance expansion ($1.025\times$ around the mean) to counteract L2/SVR shrinkage.
 
 ---
 
