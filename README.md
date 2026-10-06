@@ -384,9 +384,3 @@ outputs/
 > performance loss. However, pseudo-speaker groups are also derived from WavLM layers 3–6; dropping
 > WavLM requires replacing the speaker-embedding step (e.g. with ECAPA-TDNN).
 
----
-
-## Citation
-
-If you build on this work, please cite the SHL Hiring Assessment 2026 competition and each model
-according to its respective licence.
