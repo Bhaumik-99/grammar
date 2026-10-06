@@ -15,12 +15,12 @@ Metrics computed from the full completed pipeline run across $421$ speaker group
 
 | Evaluation Metric | Score | Specification / Benchmark Notes |
 | :--- | :---: | :--- |
-| **Out-of-Fold RMSE** | **`0.5096`** | Second-level speaker-grouped cross-validation ($5\times 3$ folds) |
-| **Out-of-Fold Pearson ($r$)** | **`0.8647`** | Scale-invariant linear correlation on unseen speakers |
-| **Out-of-Fold MAE** | **`0.3957`** | Mean Absolute Error across scorable responses |
-| **Composite Score** $\frac{\text{RMSE} + (1 - r)}{2}$ | **`0.3224`** | Combined benchmark metric balancing absolute error (RMSE) and ranking consistency (Pearson correlation) |
-| **Test-Cohort Adjusted RMSE** | **`0.5190`** | Cross-validation RMSE adjusted to match the test set's shorter audio duration (~45 s test clips vs ~60 s train clips) |
-| **Full Model Training RMSE** | **`0.2823`** | Final training error after refitting the ensemble on all 769 training samples (including 0.0 noise-flagged clips) |
+| **Out-of-Fold RMSE** | **`0.5074`** | Second-level speaker-grouped cross-validation on elite pruned ensemble |
+| **Out-of-Fold Pearson ($r$)** | **`0.8659`** | Scale-invariant linear correlation on unseen speakers |
+| **Out-of-Fold MAE** | **`0.3936`** | Mean Absolute Error across scorable responses |
+| **Composite Score** $\frac{\text{RMSE} + (1 - r)}{2}$ | **`0.3207`** | Primary competition evaluation loss proxy |
+| **Test-Cohort Adjusted RMSE** | **`0.5193`** | Cross-validation RMSE adjusted to match test set duration mix |
+| **Full Model Training RMSE** | **`0.2926`** | Final training error across all 769 training samples (including 0.0 noise gate) |
 | **Public Leaderboard Score** | **`0.3308`** | **Official competition submission score on Kaggle test set** |
 
 ---
@@ -33,31 +33,30 @@ Cross-validated error profile broken down by recording cohort duration:
 | :--- | :---: | :---: | :---: | :---: |
 | **$\\ge 59.0\\text{ s}$ Cohort** | $521$ | $0.390$ | $-0.036$ | **`0.508`** |
 | **$46.0 - 59.0\\text{ s}$ Cohort** | $42$ | $0.360$ | $+0.043$ | **`0.438`** |
-| **$44.0 - 46.0\\text{ s}$ Cohort** | $124$ | $0.420$ | $+0.054$ | **`0.532`** |
+| **$44.0 - 46.0\\text{ s}$ Cohort** | $124$ | $0.421$ | $+0.058$ | **`0.534`** |
 | **$< 44.0\\text{ s}$ Cohort** | $45$ | $0.433$ | $+0.071$ | **`0.525`** |
 
 ---
 
 ### 3. Stacking Ensemble Meta-Weights
 
-Learned Non-Negative Least Squares (NNLS) weights assigned to level-1 base estimators:
+Learned Non-Negative Least Squares (NNLS) weights assigned to the **12 elite base estimators** (19 multicollinear/redundant models pruned):
 
 | Base Estimator View | Model Architecture | Meta-Weight | Relative Share |
 | :--- | :--- | :---: | :---: |
-| **Whisper-large-v3** (Layers 20–28) | PCA(128) + RBF-SVR | **`0.228`** | $22.8\\%$ |
-| **DeBERTa-v3-large** (Clean + CTC) | 5-Fold Regressor | **`0.191`** | $19.1\\%$ |
-| **Voxtral-Mini-3B** (Layers 15–22) | Dual Ridge Regression | **`0.146`** | $14.6\\%$ |
-| **Qwen3-Embedding-4B** (Verbatim View) | Dual Ridge Regression | **`0.109`** | $10.9\\%$ |
-| **HuBERT-large** (Layers 18–22) | Dual Ridge Regression | **`0.076`** | $7.6\\%$ |
-| **Qwen2-Audio-7B** (Audio Tokens 10–16) | Dual Ridge Regression | **`0.064`** | $6.4\\%$ |
-| **Voxtral-Mini-3B** (Layers 9–14) | Dual Ridge Regression | **`0.057`** | $5.7\\%$ |
-| **WavLM-large** (Layers 19–21) | Dual Ridge Regression | **`0.053`** | $5.3\\%$ |
-| **Whisper-large-v3** (Layers 30–32) | PCA(128) + RBF-SVR | **`0.046`** | $4.6\\%$ |
+| **Whisper-large-v3** (Layers 20–28) | PCA(128) + RBF-SVR | **`0.237`** | $23.7\\%$ |
+| **DeBERTa-v3-large** (Clean + CTC) | 5-Fold Regressor | **`0.189`** | $18.9\\%$ |
+| **Voxtral-Mini-3B** (Layers 15–22) | Dual Ridge Regression | **`0.147`** | $14.7\\%$ |
+| **Qwen3-Embedding-4B** (Verbatim View) | Dual Ridge Regression | **`0.110`** | $11.0\\%$ |
+| **HuBERT-large** (Layers 18–22) | Dual Ridge Regression | **`0.084`** | $8.4\\%$ |
+| **Qwen2-Audio-7B** (Audio Tokens 10–16) | Dual Ridge Regression | **`0.072`** | $7.2\\%$ |
+| **Voxtral-Mini-3B** (Layers 9–14) | Dual Ridge Regression | **`0.067`** | $6.7\\%$ |
+| **WavLM-large** (Layers 19–21) | Dual Ridge Regression | **`0.054`** | $5.4\\%$ |
+| **Whisper-large-v3** (Layers 30–32) | PCA(128) + RBF-SVR | **`0.052`** | $5.2\\%$ |
+| **Qwen3-8B Text States** (Clean View) | Dual Ridge Regression | **`0.049`** | $4.9\\%$ |
 | **Tabular Predictors** (144 features) | Regularised Ridge | **`0.045`** | $4.5\\%$ |
-| **Qwen3-8B Text States** (Clean View) | Dual Ridge Regression | **`0.042`** | $4.2\\%$ |
-| **Qwen3-Embedding-4B** (Parakeet-CTC) | Dual Ridge Regression | **`0.036`** | $3.6\\%$ |
-| **w2v-BERT 2.0** (Layers 12–22) | PCA(128) + RBF-SVR | **`0.034`** | $3.4\\%$ |
-| *Learned Bias / Intercept* | Constant | **`-0.523`** | — |
+| **Qwen3-Embedding-4B** (Parakeet-CTC) | Dual Ridge Regression | **`0.039`** | $3.9\\%$ |
+| *Learned Bias / Intercept* | Constant | **`-0.507`** | — |
 
 ---
 
@@ -67,9 +66,9 @@ Distribution statistics across the $216$ test evaluation samples generated in `s
 
 | Count | Mean | Standard Deviation | Min | 25th Pct | Median | 75th Pct | Max |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| $216$ | **`3.223`** | `0.871` | `1.614` | `2.556` | `3.144` | `3.722` | `5.000` |
+| $216$ | **`3.256`** | `0.851` | `1.630` | `2.612` | `3.192` | `3.745` | `5.000` |
 
-*Post-processing calibration applied*: Duration-cohort bias compensation ($-0.054$ shift on $44-46\text{ s}$ clips) and tail variance expansion ($1.025\times$ around the mean) to counteract L2/SVR shrinkage.
+*Regularized ensemble generation*: 12 elite cross-modal models with multicollinearity pruning, bounded to valid MOS rubric $[1.0, 5.0]$ and dynamic anomaly zero-gating.
 
 ---
 
