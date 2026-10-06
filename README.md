@@ -16,7 +16,7 @@
 | CV composite `(RMSE + 1 − r) / 2` | **0.3225** |
 | CV RMSE re-weighted to test-set batch mix | 0.519 |
 | Training RMSE (in-sample, all 769 clips) | 0.285 |
-| **Public leaderboard** (lower is better) | **0.3316 — 3rd of 63 (3 Oct 2026)** |
+| **Public leaderboard** (lower is better) | **0.3308** |
 
 ---
 
