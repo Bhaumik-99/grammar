@@ -18,10 +18,10 @@ Metrics computed from the full completed pipeline run across $421$ speaker group
 | **Out-of-Fold RMSE** | **`0.5096`** | Second-level speaker-grouped cross-validation ($5\times 3$ folds) |
 | **Out-of-Fold Pearson ($r$)** | **`0.8647`** | Scale-invariant linear correlation on unseen speakers |
 | **Out-of-Fold MAE** | **`0.3957`** | Mean Absolute Error across scorable responses |
-| **Composite Score** $\frac{\text{RMSE} + (1 - r)}{2}$ | **`0.3224`** | Primary competition evaluation loss proxy |
-| **Test-Batch Reweighted RMSE** | **`0.5190`** | Reweighted to match test set $45.06\text{ s}$ batch cohort distribution |
-| **Full Training Refit RMSE** | **`0.2823`** | In-sample refit across all $769$ training instances (includes $0.0$ noise gate) |
-| **Public Leaderboard Score** | **`0.3308`** | **Official Submission Score (Top Tier)** |
+| **Composite Score** $\frac{\text{RMSE} + (1 - r)}{2}$ | **`0.3224`** | Combined benchmark metric balancing absolute error (RMSE) and ranking consistency (Pearson correlation) |
+| **Test-Cohort Adjusted RMSE** | **`0.5190`** | Cross-validation RMSE adjusted to match the test set's shorter audio duration (~45 s test clips vs ~60 s train clips) |
+| **Full Model Training RMSE** | **`0.2823`** | Final training error after refitting the ensemble on all 769 training samples (including 0.0 noise-flagged clips) |
+| **Public Leaderboard Score** | **`0.3308`** | **Official competition submission score on Kaggle test set** |
 
 ---
 
