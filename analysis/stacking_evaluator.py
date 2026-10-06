@@ -28,8 +28,8 @@ from lightgbm import LGBMRegressor
 from sklearn.svm import SVR
 
 sys.path.insert(0, str(Path(__file__).parent))
-from cv import make_folds, nested_blend_score, nnls_blend, report, rmse  # noqa: E402
-from fastridge import ridge_fold, ridge_oof, ridge_oof_grouped, standardize  # noqa: E402
+from cross_validation import make_folds, nested_blend_score, nnls_blend, report, rmse  # noqa: E402
+from regularised_ridge import ridge_fold, ridge_oof, ridge_oof_grouped, standardize  # noqa: E402
 
 ROOT = Path(__file__).parents[1]
 OUTS = ROOT / "outputs"
@@ -118,7 +118,7 @@ def _wer(ref, hyp):
 
 def asr_view_features(path):
     """Timing/confidence features of an extra ASR view + disagreement with clean Whisper."""
-    from textfeats import timing_features
+    from linguistic_features import timing_features
 
     name = path.stem[4:]
     clean = {(r["split"], r["filename"]): r for r in
@@ -155,7 +155,7 @@ def tabular_view(df):
         cols = [c for c in p.columns if c.startswith("nll_")]
         parts.append(p[["split", "filename"] + cols].rename(columns={c: f"{c}_{view}" for c in cols}))
     for f in sorted((OUTS / "llm_feats").glob("gec_*.jsonl")):
-        from gec_features import gec_features
+        from gec_feature_extractor import gec_feature_extractor
 
         rows = [json.loads(l) for l in open(f, encoding="utf-8")]
         parts.append(pd.DataFrame([{"split": r["split"], "filename": r["filename"],

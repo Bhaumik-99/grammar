@@ -14,8 +14,8 @@ import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent))
-from cv import make_folds, report  # noqa: E402
-from fastridge import ridge_oof  # noqa: E402
+from cross_validation import make_folds, report  # noqa: E402
+from regularised_ridge import ridge_oof  # noqa: E402
 
 ROOT = Path(__file__).parents[1]
 ap = argparse.ArgumentParser()

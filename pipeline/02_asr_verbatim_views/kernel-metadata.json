@@ -1,7 +1,7 @@
 {
-  "id": "simpra26/shl-2026-asr-verbatim-views",
+  "id": "bhaumiksenwal110/shl-2026-asr-verbatim-views",
   "title": "shl-2026-asr-verbatim-views",
-  "code_file": "asr_parakeet.py",
+  "code_file": "multiview_verbatim_transcription.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": true,

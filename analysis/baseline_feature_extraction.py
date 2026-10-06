@@ -16,8 +16,8 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 sys.path.insert(0, str(Path(__file__).parent))
-from cv import cross_val_predict, make_folds, report  # noqa: E402
-from textfeats import linguistic_features, timing_features  # noqa: E402
+from cross_validation import cross_val_predict, make_folds, report  # noqa: E402
+from linguistic_features import linguistic_features, timing_features  # noqa: E402
 
 eda = Path(sys.argv[1])
 data_dir = Path(__file__).parents[1] / "data"

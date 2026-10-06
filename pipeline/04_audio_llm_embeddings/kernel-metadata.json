@@ -1,7 +1,7 @@
 {
-  "id": "simpra26/shl-2026-audio-llm-embeddings",
+  "id": "bhaumiksenwal110/shl-2026-audio-llm-embeddings",
   "title": "shl-2026-audio-llm-embeddings",
-  "code_file": "audio_llm_emb.py",
+  "code_file": "audio_llm_representation_extractor.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": true,
@@ -9,7 +9,9 @@
   "enable_internet": true,
   "machine_shape": "NvidiaTeslaT4",
   "dataset_sources": [],
-  "competition_sources": ["shl-hiring-assessment-2026"],
+  "competition_sources": [
+    "shl-hiring-assessment-2026"
+  ],
   "kernel_sources": [],
   "model_sources": []
 }

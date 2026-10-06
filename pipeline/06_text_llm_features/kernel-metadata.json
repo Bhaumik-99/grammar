@@ -1,7 +1,7 @@
 {
-  "id": "simpra26/shl-2026-text-llm-features",
+  "id": "bhaumiksenwal110/shl-2026-text-llm-features",
   "title": "shl-2026-text-llm-features",
-  "code_file": "llm_judge.py",
+  "code_file": "qwen3_text_feature_pipeline.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": true,
@@ -13,8 +13,8 @@
     "shl-hiring-assessment-2026"
   ],
   "kernel_sources": [
-    "simpra26/shl-2026-eda-asr",
-    "simpra26/shl-2026-audio-embeddings"
+    "bhaumiksenwal110/shl-2026-eda-asr",
+    "bhaumiksenwal110/shl-2026-audio-embeddings"
   ],
   "model_sources": []
 }

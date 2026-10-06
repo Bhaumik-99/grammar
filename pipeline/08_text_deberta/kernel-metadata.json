@@ -1,7 +1,7 @@
 {
-  "id": "simpra26/shl-2026-text-deberta",
+  "id": "bhaumiksenwal110/shl-2026-text-deberta",
   "title": "shl-2026-text-deberta",
-  "code_file": "deberta_cv.py",
+  "code_file": "deberta_regressor_cv.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": true,
@@ -13,9 +13,9 @@
     "shl-hiring-assessment-2026"
   ],
   "kernel_sources": [
-    "simpra26/shl-2026-eda-asr",
-    "simpra26/shl-2026-audio-embeddings",
-    "simpra26/shl-2026-asr-verbatim-views"
+    "bhaumiksenwal110/shl-2026-eda-asr",
+    "bhaumiksenwal110/shl-2026-audio-embeddings",
+    "bhaumiksenwal110/shl-2026-asr-verbatim-views"
   ],
   "model_sources": []
 }

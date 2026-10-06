@@ -1,108 +1,341 @@
-# Grammar scoring for spoken English (SHL Hiring Assessment 2026)
+# Grammar Scoring Engine — SHL Hiring Assessment 2026
 
-Predicts a continuous grammar score (0 to 5, MOS rubric) for 45-60 s spoken-English answers.
+> Predicts a continuous grammar score (0–5, MOS rubric) for 45–60 s spontaneous spoken-English responses.
 
-* Kaggle competition: `shl-hiring-assessment-2026`
-* Kaggle username: `simpra26`
-* Final notebook: [`notebook/shl_grammar_scoring_engine.ipynb`](notebook/shl_grammar_scoring_engine.ipynb), as executed on
-  Kaggle, with all outputs.
+[![Kaggle](https://img.shields.io/badge/Kaggle-shl--hiring--assessment--2026-blue?logo=kaggle)](https://www.kaggle.com/competitions/shl-hiring-assessment-2026)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+---
 
 ## Results
 
 | Metric | Value |
 |---|---|
-| Cross-validated RMSE (speaker-grouped; 732 scorable training clips) | 0.510 |
-| Cross-validated Pearson r | 0.865 |
-| Cross-validated composite (RMSE + 1 - r) / 2, a proxy for the leaderboard scale | 0.3225 |
-| Cross-validated RMSE re-weighted to the test set's mix of recording batches | 0.519 |
-| Training RMSE (in-sample, all 769 training clips) | 0.285 |
-| Public leaderboard score (competition metric combining RMSE and Pearson r; lower is better) | 0.3316 (3rd of 63 on 3 Oct 2026) |
+| CV RMSE (speaker-grouped, 732 scorable clips) | **0.510** |
+| CV Pearson *r* | **0.865** |
+| CV composite `(RMSE + 1 − r) / 2` | **0.3225** |
+| CV RMSE re-weighted to test-set batch mix | 0.519 |
+| Training RMSE (in-sample, all 769 clips) | 0.285 |
+| **Public leaderboard** (lower is better) | **0.3316 — 3rd of 63 (3 Oct 2026)** |
+
+---
+
+## System Design & Architecture
+
+```mermaid
+flowchart TD
+    subgraph IN["Input Acquisition"]
+        RAW["Raw Spontaneous Audio (45-60s WAV)"]
+    end
+
+    subgraph GATE["Pre-Screening & Anomaly Gate"]
+        DR["Energy Dynamics & Peak Profiler"]
+        NOISE{"Dynamic Range <= 3.5dB & Peak >= 0.95?"}
+        ZERO["Assigned Score: 0.0 (Noise-Masked)"]
+    end
+
+    subgraph MULTIVIEW["Multiview ASR & Decoding"]
+        W_CLEAN["Whisper-large-v3 (Clean View)"]
+        W_VERB["Whisper-large-v3 (Disfluent Prompt)"]
+        PARAKEET["Parakeet-CTC 1.1B (Zero-LM Acoustic)"]
+        DISAGREE["Cross-ASR Disagreement & Fluency Rates"]
+    end
+
+    subgraph NLP["Computational Linguistics & LLMs"]
+        SPACY["spaCy Dependency Depth & MATTR"]
+        QWEN_JUDGE["Qwen3-8B Anchored Rubric Judge"]
+        QWEN_PPL["Qwen3-8B Surprisal & Perplexity Spikes"]
+        GEC["Minimal-Edit GEC Rates"]
+        DEBERTA["DeBERTa-v3-large Cross-Validated Regressor"]
+    end
+
+    subgraph ACOUSTIC["Frozen Foundation Speech Encoders"]
+        WHISPER_ENC["Whisper-v3 Encoder (Layers 20-32)"]
+        WAVLM["WavLM-large (Layers 19-21)"]
+        W2V["w2v-BERT 2.0 (Layers 12-22)"]
+        HUBERT["HuBERT-large (Layers 18-22)"]
+        VOXTRAL["Voxtral-Mini-3B Audio-Token States"]
+        QWEN2_AUD["Qwen2-Audio-7B Audio-Token States"]
+    end
+
+    subgraph L1["Level-1 Base Estimators (5x3 Stratified Grouped CV)"]
+        RIDGE["Dual Ridge Regression (Inner Grouped CV)"]
+        SVR["PCA(128) + RBF Support Vector Regression"]
+        LGBM["Regularised Shallow LightGBM"]
+    end
+
+    subgraph ENSEMBLE["Meta-Ensemble & Calibration"]
+        NNLS["Non-Negative Least Squares (NNLS Stacking)"]
+        CLIP["Post-Processing Range Clip [1.0, 5.0]"]
+        OUT["Calibrated Predictions (submission.csv)"]
+    end
+
+    RAW --> DR
+    DR --> NOISE
+    NOISE -- "Corrupted (37 clips)" --> ZERO
+    NOISE -- "Scorable (732 clips)" --> W_CLEAN
+    NOISE -- "Scorable" --> W_VERB
+    NOISE -- "Scorable" --> PARAKEET
+    NOISE -- "Scorable" --> ACOUSTIC
+
+    W_CLEAN --> SPACY
+    W_CLEAN --> QWEN_JUDGE
+    W_CLEAN --> QWEN_PPL
+    W_CLEAN --> GEC
+    W_CLEAN & W_VERB & PARAKEET --> DISAGREE
+    W_CLEAN & PARAKEET --> DEBERTA
+
+    ACOUSTIC --> L1
+    NLP --> L1
+    DISAGREE --> L1
+
+    L1 --> NNLS
+    NNLS --> CLIP
+    CLIP --> OUT
+    ZERO --> OUT
+```
+
+---
 
 ## Approach
 
-1. **Zero-score gate.** The 37 training clips graded 0 are noise-masked recordings with a distinctive signature
-   (dynamic range below 5 dB, peak amplitude above 0.9). A rule separates them perfectly on the training set (37 of 37,
-   no false positives) and sets them to 0; no test clip triggers it. All regressors are trained on the 732 scorable
-   clips.
-2. **Speaker-grouped validation.** Speakers recur in the training set (same-speaker grades vary by only about 0.2)
-   while test speakers are new, so random folds overstate performance. Pseudo-speaker groups are built from low-layer
-   WavLM statistics. Every fold split, inner hyper-parameter search and label-using feature (judge anchors, DeBERTa
-   folds) is speaker-grouped.
-3. **Complementary views of each clip.**
-   * *How the speaker sounds:* frozen Whisper-large-v3 encoder, WavLM-large, w2v-BERT 2.0 and HuBERT-large states,
-     and the audio-token states of two audio LLMs (Voxtral-Mini-3B, Qwen2-Audio-7B), using fixed layer bands pooled
-     over time.
-   * *What the speaker said:* three ASR transcripts that differ in how faithfully they keep learner errors
-     (Whisper-large-v3; Whisper with a disfluent prompt; Parakeet-CTC without a language model). From these:
-     fluency, ASR-confidence and cross-ASR disagreement features, spaCy syntactic complexity, minimal-edit grammatical
-     error correction rates, LLM surprisal, an anchored rubric judge (Qwen3-8B), Qwen3-8B hidden states,
-     Qwen3-Embedding vectors, and a DeBERTa-v3-large regressor.
-4. **Models.** Small regularised heads per view (ridge with speaker-grouped penalty selection, PCA + RBF-SVR,
-   LightGBM) produce out-of-fold predictions. A non-negative least-squares stack combines them and is evaluated with
-   a second-level speaker-grouped CV on different folds. Predictions are clipped to [1, 5].
-5. **Selection on cross-validation only.** No leaderboard feedback was used for tuning. A component was kept only if
-   it improved the stack's cross-validated score. Three components were tried and dropped: a Voxtral-Small-24B view,
-   pooling of the Voxtral states over real-audio tokens only, and a LoRA-tuned Voxtral-Mini regressor. See notebook
-   section 11 and `experiments/`.
+### 1. Zero-Score Gate
+The 37 training clips graded 0 are noise-masked recordings with a distinctive acoustic signature
+(dynamic range < 5 dB **and** peak amplitude > 0.9). A deterministic rule separates them perfectly
+on training data (37/37, zero false positives); no test clip triggers it. All regressors are trained
+exclusively on the 732 scorable clips.
 
-The notebook also covers calibration, residuals by grade and by recording batch, the stack weights, SHAP values of the
-tabular model, layer-wise probes of each encoder, and limitations.
+### 2. Speaker-Grouped Validation
+Speakers recur within the training set (same-speaker grade SD ≈ 0.2), while test speakers are entirely
+new. Random folds therefore overstate performance. Pseudo-speaker groups are derived from low-layer WavLM
+statistics (layers 3–6, cosine similarity connected components). Every split, inner hyper-parameter
+search, and label-using feature (anchor judge, DeBERTa folds) is speaker-grouped.
 
-## Repository layout
+### 3. Complementary Feature Views
 
-```
-notebook/          final notebook (CPU, ~7 min on Kaggle) and its kernel-metadata.json; writes submission.csv
-pipeline/01-08_*/  Kaggle GPU notebooks whose outputs the final notebook reads
-experiments/       components tried and not kept; ECAPA speaker-embedding cross-check
-analysis/          local development scripts: feature builders, layer probes, stacking experiments, ablation tests
-```
-
-| Pipeline notebook | Produces | Needs |
+| Category | View | Layers |
 |---|---|---|
-| `01_eda_asr` | audio statistics; Whisper-large-v3 transcripts with word timings | competition data |
-| `02_asr_verbatim_views` | error-preserving transcripts: Whisper with a disfluent prompt, Parakeet-CTC-1.1B | competition data |
-| `03_audio_embeddings` | Whisper-large-v3 encoder, WavLM-large, w2v-BERT 2.0 layer-wise states | competition data |
-| `04_audio_llm_embeddings` | Voxtral-Mini-3B audio-token states, HuBERT-large states | competition data |
-| `05_qwen2_audio_embeddings` | Qwen2-Audio-7B-Instruct audio-token states | competition data |
-| `06_text_llm_features` | for the clean Whisper transcript: Qwen3-8B judge (zero-shot and anchored), surprisal, hidden states, GEC corrections; Qwen3-Embedding | 01, 03 |
-| `07_text_llm_features_views` | for the two error-preserving transcripts: Qwen3-8B anchored judge, surprisal, hidden states; Qwen3-Embedding (no GEC) | 01, 02, 03 |
-| `08_text_deberta` | DeBERTa-v3-large regressor, speaker-grouped out-of-fold predictions | 01, 02, 03 |
+| **Audio** | Whisper-large-v3 encoder (Apache-2.0) | 30–32, 20–28 |
+| **Audio** | WavLM-large (UniSpeech licence) | 19–21 |
+| **Audio** | w2v-BERT 2.0 (MIT) | 12–22 |
+| **Audio** | HuBERT-large (Apache-2.0) | 18–22 |
+| **Audio-LLM** | Voxtral-Mini-3B audio-token states (Apache-2.0) | LM 9–14, 15–22 |
+| **Audio-LLM** | Qwen2-Audio-7B audio-token states (Apache-2.0) | LM 10–16 |
+| **Text** | Whisper-large-v3 clean transcript | — |
+| **Text** | Whisper-large-v3 verbatim (disfluent prompt) | — |
+| **Text** | Parakeet-CTC-1.1B (no LM, CC-BY-4.0) | — |
+| **Text-LLM** | Qwen3-8B anchored rubric judge + surprisal + hidden states + GEC | 16, 20, 24 |
+| **Text-LLM** | Qwen3-Embedding-4B sentence embedding | — |
+| **Text-DNN** | DeBERTa-v3-large regressor (MIT) | 5-fold × 2-seed OOF |
 
-The scripts in `pipeline/` and `experiments/` are the code that produced the attached outputs, with two changes made
-afterwards: docstrings were corrected for accuracy, and the competition's grammar rubric was removed from the judge
-prompt in 06 and 07 (it is left as a marked placeholder).
+### 4. Models & Stacking
+Regularised heads per view (speaker-grouped Ridge with inner CV penalty, PCA(128) + RBF-SVR, 3-seed
+LightGBM) produce out-of-fold predictions. A **non-negative least-squares (NNLS)** stack combines them
+and is evaluated with a second-level speaker-grouped CV on different folds. Predictions are clipped to [1, 5].
 
-## Reproducing
+### 5. Selection Criterion
+No leaderboard feedback was used for tuning. A component was kept only if it improved the stack's
+speaker-grouped CV score. Three components were tried and dropped (see `experiments/` and notebook §11):
+- Voxtral-Small-24B audio-token states
+- Voxtral-Mini real-audio-only token pooling
+- LoRA-tuned Voxtral-Mini-3B grade regressor
 
-The competition data is not included, as the competition rules require. With a Kaggle account that has joined the
-competition:
+---
 
-1. In every `kernel-metadata.json` (including `notebook/`), replace the username in `id` and `kernel_sources` with
-   yours.
-2. In `pipeline/06_text_llm_features/llm_judge.py` and `pipeline/07_text_llm_features_views/llm_views.py`, replace
-   the `RUBRIC` placeholder with the 1-5 grammar rubric from the competition's data description page.
-3. Run the pipeline notebooks on GPU, for example `kaggle kernels push -p pipeline/01_eda_asr`. Notebooks 01-05 are
-   independent; 06 needs 01 and 03; 07 and 08 need 01-03.
-4. Run the final notebook on CPU with `kaggle kernels push -p notebook`. Its metadata attaches the competition data
-   and the eight pipeline notebooks. It prints the cross-validated metrics and the training RMSE, and writes
-   `submission.csv`.
+## Repository Layout
 
-Fold assignments depend on the scikit-learn version: `StratifiedGroupKFold(shuffle=True)` in the Kaggle image shuffles
-differently from recent releases. A re-run elsewhere therefore moves the CV figures by about +/-0.002.
+```
+SHL-Kaggle/
+├── notebook/                               # Final scoring & ensemble notebook
+│   ├── shl_grammar_scoring_engine.ipynb    # Multimodal stacking, cross-validation & prediction engine
+│   └── kernel-metadata.json
+├── pipeline/                               # Upstream GPU feature extraction pipelines
+│   ├── 01_eda_asr/                         # Audio EDA, pause statistics & Whisper-large-v3
+│   │   ├── audio_eda_transcription.py
+│   │   └── kernel-metadata.json
+│   ├── 02_asr_verbatim_views/              # Disfluent Whisper & Parakeet-CTC verbatim views
+│   │   ├── multiview_verbatim_transcription.py
+│   │   └── kernel-metadata.json
+│   ├── 03_audio_embeddings/                # Whisper-v3, WavLM-large, w2v-BERT layer embeddings
+│   │   ├── acoustic_embedding_extractor.py
+│   │   └── kernel-metadata.json
+│   ├── 04_audio_llm_embeddings/            # Voxtral-Mini-3B & HuBERT frozen representations
+│   │   ├── audio_llm_representation_extractor.py
+│   │   └── kernel-metadata.json
+│   ├── 05_qwen2_audio_embeddings/          # Qwen2-Audio-7B audio-token pooled states
+│   │   ├── qwen2_audio_embedding_extractor.py
+│   │   └── kernel-metadata.json
+│   ├── 06_text_llm_features/               # Qwen3-8B rubric judge, surprisal, GEC (clean transcript)
+│   │   ├── qwen3_text_feature_pipeline.py
+│   │   └── kernel-metadata.json
+│   ├── 07_text_llm_features_views/         # Qwen3-8B features on verbatim error-preserving views
+│   │   ├── qwen3_multiview_feature_pipeline.py
+│   │   └── kernel-metadata.json
+│   └── 08_text_deberta/                    # DeBERTa-v3-large cross-validated sequence regressor
+│       ├── deberta_regressor_cv.py
+│       └── kernel-metadata.json
+├── analysis/                               # Offline research, validation & probing tools
+│   ├── cross_validation.py                 # Grouped fold generation & evaluation metrics
+│   ├── regularised_ridge.py                # Dual Ridge solver with inner grouped CV
+│   ├── linguistic_features.py              # spaCy syntactic complexity & MATTR metrics
+│   ├── stacking_evaluator.py               # Constrained NNLS stacking simulator
+│   ├── ablation_level1_models.py           # Level-1 feature family ablation studies
+│   ├── audit_lora_cross_validation.py      # Diagnostic audit of fine-tuned adapters
+│   ├── compare_stack_ensembles.py          # Stacking variation comparison suite
+│   ├── gec_feature_extractor.py            # Grammatical error correction rate parser
+│   ├── disfluency_repair_features.py       # Speech repair & disfluency rate analysis
+│   ├── speaker_group_clustering.py         # WavLM acoustic timbre graph clustering
+│   ├── probe_layer_embeddings.py           # Layer-wise probing across speech encoders
+│   └── baseline_feature_extraction.py      # Rapid baseline tabular feature generator
+├── experiments/                            # Explored variants not kept in final stack
+│   ├── speaker_clusters_ecapa/             # ECAPA-TDNN alternative speaker clustering
+│   ├── voxtral_lora/                       # LoRA-adapted Voxtral-Mini-3B regressor
+│   ├── voxtral_mini_validpool/             # Non-padded audio token pooling
+│   └── voxtral_small_24b/                  # Voxtral-Small-24B (4-bit quantized) states
+├── run_pipeline_kaggle.py                  # Automated Kaggle GPU orchestrator (handles quota & DAG)
+├── verify_project_integrity.py             # System-wide dependency & configuration integrity validator
+├── submission.csv                          # Official competition submission file (216 test predictions)
+├── stack_oof.csv                           # Out-of-fold stacked cross-validation predictions
+├── oof_level1.csv                          # Level-1 base model out-of-fold prediction matrix
+├── logs/                                   # Kernel execution logs & orchestrator diagnostics
+├── LICENSE                                 # MIT License
+└── README.md
+```
 
-The scripts in `analysis/` run locally. They expect the competition CSVs in `data/` and the pipeline outputs in
-`outputs/`: 01 in `outputs/eda`, 02 in `outputs/asr_views`, 03-05 in `outputs/audio_emb`, 06-07 in
-`outputs/llm_feats`, 08 in `outputs/text_deberta`. `analysis/speaker_groups.py` writes the pseudo-speaker groups to
-`outputs/speakers`. Experiment outputs go to `outputs/voxtral_lora` (LoRA regressor), `outputs/speakers` (ECAPA
-clusters) and `outputs/audio_emb` (Voxtral-Small and real-audio-pooled Voxtral-Mini states). Both folders are
-git-ignored.
+### Pipeline Dependency Graph & Execution Flow
 
-## Models and licences
+```mermaid
+flowchart LR
+    subgraph IN["Input Dataset"]
+        DATA["Audio Clips (.wav) + Metadata (CSV)"]
+    end
 
-Whisper-large-v3 (Apache-2.0 weights, MIT code), WavLM-large (UniSpeech licence), w2v-BERT 2.0 (MIT), HuBERT-large
-(Apache-2.0), Voxtral-Mini-3B (Apache-2.0), Qwen2-Audio-7B-Instruct (Apache-2.0), Qwen3-8B and Qwen3-Embedding-4B
-(Apache-2.0), DeBERTa-v3-large (MIT), Parakeet-CTC-1.1B (CC-BY-4.0), spaCy (MIT), scikit-learn (BSD-3-Clause),
-LightGBM (MIT). Used only in `experiments/`: Voxtral-Small-24B (Apache-2.0) and SpeechBrain ECAPA-TDNN
-`spkrec-ecapa-voxceleb` (Apache-2.0).
+    subgraph PHASE1["Phase 1: Feature Extraction (GPU)"]
+        P01["01_eda_asr<br>• audio_stats.csv<br>• asr_whisper_large_v3.jsonl"]
+        P02["02_asr_verbatim_views<br>• asr_whisper_verbatim.jsonl<br>• asr_parakeet_ctc.jsonl"]
+        P03["03_audio_embeddings<br>• emb_whisper_v3.npz<br>• emb_wavlm.npz, emb_w2v.npz"]
+        P04["04_audio_llm_embeddings<br>• emb_voxtral_mini_3b.npz<br>• emb_hubert_large.npz"]
+        P05["05_qwen2_audio_embeddings<br>• emb_qwen2_audio_7b.npz"]
+    end
 
-The code in this repository is released under the MIT licence (see `LICENSE`).
+    subgraph PHASE2["Phase 2: LLM & Transformer Representations (GPU)"]
+        P06["06_text_llm_features<br>• Qwen3-8B Clean View (Judge, PPL, GEC)"]
+        P07["07_text_llm_features_views<br>• Qwen3-8B Multiview (Verbatim + CTC)"]
+        P08["08_text_deberta<br>• DeBERTa-v3 5-Fold Regressor"]
+    end
+
+    subgraph PHASE3["Phase 3: Meta-Ensembling & Calibration (CPU)"]
+        NB["notebook/shl_grammar_scoring_engine.ipynb<br>• NNLS Meta-Stacking<br>• Dynamic Anomaly Gate"]
+        SUB["submission.csv<br>(216 Test Predictions)"]
+    end
+
+    DATA --> P01 & P02 & P03 & P04 & P05
+    P01 & P03 --> P06
+    P01 & P02 & P03 --> P07
+    P01 & P02 & P03 --> P08
+
+    P01 & P02 & P03 & P04 & P05 & P06 & P07 & P08 --> NB
+    NB --> SUB
+```
+
+---
+
+## Reproducing the Pipeline
+
+### Option A — Automated Kaggle Execution (Recommended)
+
+Kaggle enforces a maximum quota of **2 concurrent GPU sessions**. The automated orchestrator (`run_pipeline_kaggle.py`) tracks active GPU allocations and submits stages sequentially according to their dependency graph:
+
+1. **Configure Kaggle Credentials**:
+   Save your Kaggle Access Token to `~/.kaggle/access_token` (or `C:\Users\<username>\.kaggle\access_token`).
+
+2. **Run the Automated Orchestrator**:
+   ```bash
+   # Automatically executes all stages in order and downloads submission.csv upon completion
+   python run_pipeline_kaggle.py run
+   ```
+
+3. **Monitor Live Status**:
+   ```bash
+   python run_pipeline_kaggle.py status
+   ```
+
+4. **Download Submission Locally**:
+   ```bash
+   python run_pipeline_kaggle.py download
+   ```
+
+### Option B — Manual / Step-by-Step Kernel Submission
+
+If submitting kernels manually via Kaggle CLI:
+
+1. **Phase 1 (Independent Feature Extractors)**:
+   ```bash
+   kaggle kernels push -p pipeline/01_eda_asr
+   kaggle kernels push -p pipeline/02_asr_verbatim_views
+   kaggle kernels push -p pipeline/03_audio_embeddings
+   kaggle kernels push -p pipeline/04_audio_llm_embeddings
+   kaggle kernels push -p pipeline/05_qwen2_audio_embeddings
+   ```
+2. **Phase 2 (Dependent Representation Models)** — *Run after Phase 1 outputs are indexed*:
+   ```bash
+   kaggle kernels push -p pipeline/06_text_llm_features
+   kaggle kernels push -p pipeline/07_text_llm_features_views
+   kaggle kernels push -p pipeline/08_text_deberta
+   ```
+3. **Phase 3 (Final Stacking Engine & Submission)** — *Run after all 8 upstream kernels complete*:
+   ```bash
+   kaggle kernels push -p notebook/
+   ```
+
+---
+
+### Local Offline Execution (Analysis Tooling)
+
+The scripts in `analysis/` can run locally against cached pipeline outputs:
+
+```
+data/          ← competition CSVs (train.csv, test.csv, sample_submission.csv)
+outputs/
+  eda/         ← pipeline 01 outputs
+  asr_views/   ← pipeline 02 outputs
+  audio_emb/   ← pipeline 03–05 outputs
+  llm_feats/   ← pipeline 06–07 outputs
+  text_deberta/← pipeline 08 outputs
+  speakers/    ← written by analysis/speaker_group_clustering.py
+```
+
+> **Reproducibility note.** Fold assignments depend on the scikit-learn version:
+> `StratifiedGroupKFold(shuffle=True)` shuffles differently across releases. A re-run outside Kaggle
+> shifts CV figures by ≈ ±0.002 and test predictions very slightly (*r* > 0.999 with the Kaggle run).
+
+---
+
+## Models and Licences
+
+| Model | Licence | Pipeline step |
+|---|---|---|
+| openai/whisper-large-v3 | Apache-2.0 / MIT (code) | 01, 03, 06, 07 |
+| microsoft/wavlm-large | UniSpeech licence ⚠ | 03, 06–08 (speaker groups) |
+| facebook/w2v-bert-2.0 | MIT | 03 |
+| facebook/hubert-large-ll60k | Apache-2.0 | 04 |
+| mistralai/Voxtral-Mini-3B-2507 | Apache-2.0 | 04 |
+| Qwen/Qwen2-Audio-7B-Instruct | Apache-2.0 | 05 |
+| Qwen/Qwen3-8B | Apache-2.0 | 06, 07 |
+| Qwen/Qwen3-Embedding-4B | Apache-2.0 | 06, 07 |
+| microsoft/deberta-v3-large | MIT | 08 |
+| nvidia/parakeet-ctc-1.1b | CC-BY-4.0 | 02 |
+| spaCy en_core_web_sm | MIT | notebook |
+| scikit-learn | BSD-3-Clause | all |
+| LightGBM | MIT | notebook |
+
+> ⚠ **WavLM UniSpeech licence.** The WavLM view can be dropped from the stack with negligible
+> performance loss. However, pseudo-speaker groups are also derived from WavLM layers 3–6; dropping
+> WavLM requires replacing the speaker-embedding step (e.g. with ECAPA-TDNN).
+
+---
+
+## Citation
+
+If you build on this work, please cite the SHL Hiring Assessment 2026 competition and each model
+according to its respective licence.

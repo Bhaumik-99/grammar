@@ -1,7 +1,7 @@
 {
-  "id": "simpra26/shl-2026-voxtral-lora",
+  "id": "bhaumiksenwal110/shl-2026-voxtral-lora",
   "title": "shl-2026-voxtral-lora",
-  "code_file": "voxtral_lora.py",
+  "code_file": "voxtral_lora_fine_tuning.py",
   "language": "python",
   "kernel_type": "script",
   "is_private": true,
@@ -9,7 +9,12 @@
   "enable_internet": true,
   "machine_shape": "NvidiaTeslaT4",
   "dataset_sources": [],
-  "competition_sources": ["shl-hiring-assessment-2026"],
-  "kernel_sources": ["simpra26/shl-2026-eda-asr", "simpra26/shl-2026-audio-embeddings"],
+  "competition_sources": [
+    "shl-hiring-assessment-2026"
+  ],
+  "kernel_sources": [
+    "bhaumiksenwal110/shl-2026-eda-asr",
+    "bhaumiksenwal110/shl-2026-audio-embeddings"
+  ],
   "model_sources": []
 }
